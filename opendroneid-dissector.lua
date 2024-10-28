@@ -3,7 +3,7 @@
 -- License: apache-2.0
 
 debugMode = 0
-showTOALag = 1
+showTOALag = 0
 
 odid_protocol = Proto("OpenDroneID",  "Open Drone ID Protocol")
 odid_protocol_message_pack = Proto("OpenDroneID.message.pack",  "Open Drone ID (Message Pack)")
@@ -300,6 +300,11 @@ odid_protocol.fields = {
     odid_operator_type, odid_operator_id, odid_operator_reserved
 }
 
+function bit32_extract(value, field, size)
+    local mask = (1 << size) - 1
+    return (value >> field) & mask
+end
+
 function dump(o)
    if type(o) == 'table' then
       local s = '{ '
@@ -353,10 +358,10 @@ function debugPrint(pstring)
 end
 
 function odid_messageSubTree(buffer,subtree,msg_start,treeIndex,size,pktTime)
-    subMsgType =  bit32.extract(buffer(msg_start,1):int(),4,4)
+    subMsgType =  bit32_extract(buffer(msg_start,1):int(),4,4)
     debugPrint("subMsgType: "..subMsgType..", size:"..size)
     if subMsgType == 0 then
-        local subMsgIDType = bit32.extract(buffer(msg_start+1,1):uint(),4,4)
+        local subMsgIDType = bit32_extract(buffer(msg_start+1,1):uint(),4,4)
         subsub[treeIndex] = subtree:add(odid_protocol_message_basicid,buffer(msg_start,size), "Open Drone ID - Basic ID Message (0)")
         subsub[treeIndex]:add_le(odid_msgType, buffer(msg_start+0,1))
         subsub[treeIndex]:add_le(odid_protoVersion, buffer(msg_start+0,1))
@@ -403,7 +408,7 @@ function odid_messageSubTree(buffer,subtree,msg_start,treeIndex,size,pktTime)
         subsub[treeIndex]:add_le(odid_protoVersion, buffer(msg_start+0,1))
         subsub[treeIndex]:add_le(odid_auth_type, buffer(msg_start+1,1))
         subsub[treeIndex]:add_le(odid_auth_pageNumber, buffer(msg_start+1,1))
-        if bit32.extract(buffer(msg_start+1,1):uint(),0,4) == 0 then
+        if bit32_extract(buffer(msg_start+1,1):uint(),0,4) == 0 then
             subsub[treeIndex]:add_le(odid_auth_lastPageIndex, buffer(msg_start+2,1))
             subsub[treeIndex]:add_le(odid_auth_length, buffer(msg_start+3,1))
             subsub[treeIndex]:add_le(odid_auth_timeStamp, buffer(msg_start+4,4))
@@ -429,7 +434,7 @@ function odid_messageSubTree(buffer,subtree,msg_start,treeIndex,size,pktTime)
         subsub[treeIndex]:add_le(odid_system_areaRadius, buffer(msg_start+12,1))
         subsub[treeIndex]:add_le(odid_system_areaCeiling, buffer(msg_start+13,2))
         subsub[treeIndex]:add_le(odid_system_areaFloor, buffer(msg_start+15,2))
-        if bit32.extract(buffer(msg_start+1,1):uint(),2,2) == 1 then
+        if bit32_extract(buffer(msg_start+1,1):uint(),2,2) == 1 then
             subsub[treeIndex]:add_le(odid_system_uaClassEUCat, buffer(msg_start+17,1))
             subsub[treeIndex]:add_le(odid_system_uaClassEUClass, buffer(msg_start+17,1))
         else
@@ -565,9 +570,9 @@ function findMessageOffset(buffer,len)
             btMsg = frameOffset.frameType+17
         }
         local btAdvType
-        if bit32.extract(buffer(frameOffset.frameType+4,1):uint(),0,4) == 0 then
+        if bit32_extract(buffer(frameOffset.frameType+4,1):uint(),0,4) == 0 then
             -- Coded Phy, S=8 / BT5 Long Range
-            btAdvType = bit32.extract(buffer(frameOffset.frameType+5,1):uint(),0,4)
+            btAdvType = bit32_extract(buffer(frameOffset.frameType+5,1):uint(),0,4)
             local BT5_OFF_ADDER = 5
             -- Add 5 bytes to each of the field offsets since BT5 has extra fields.
             btOffsets.btAdvLen = btOffsets.btAdvLen + BT5_OFF_ADDER
@@ -577,7 +582,7 @@ function findMessageOffset(buffer,len)
             btOffsets.btMsg = btOffsets.btMsg + BT5_OFF_ADDER
         else
             -- BT4 Legacy
-            btAdvType = bit32.extract(buffer(frameOffset.frameType+4,1):uint(),0,4)
+            btAdvType = bit32_extract(buffer(frameOffset.frameType+4,1):uint(),0,4)
         end
         if btAdvType == frameTypes.BT_ADV_NONCONN_IND or btAdvType == frameTypes.BT_ADV_SCAN_IND or btAdvType == frameTypes.BT_AUX_ADV_IND then
             btAdvSubType = buffer(btOffsets.btAdvSubType,1):uint()
@@ -629,7 +634,7 @@ function odid_protocol.dissector(buffer, pinfo, tree)
     end
 
     local msgTypeByte = buffer(start+1,1)
-    local msgType = bit32.extract(msgTypeByte:uint(),4,4)
+    local msgType = bit32_extract(msgTypeByte:uint(),4,4)
     debugPrint ("msgType1: "..msgType)
     subsub={}
     pinfo.cols.protocol = odid_protocol.name
